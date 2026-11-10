@@ -124,3 +124,321 @@ async def leaky_get_booking(
     booking["access_token"] = "SECRET-TOKEN-XYZ"
     response.set_cookie("session", "SECRET-COOKIE-123")
     return booking
+
+
+# =============================================================================
+# TENANT & RBAC ADDITIONS
+# New tokens, identities and endpoints added for tenant isolation / RBAC tests.
+# Existing TOKENS dict is NOT changed; new entries are merged in below.
+# =============================================================================
+
+TOKENS.update({
+    "Bearer adminTok": 3,
+    "Bearer custTok": 4,
+})
+
+IDENTITIES = {
+    1: {"user_id": 1, "tenant": "agencyA", "role": "agent"},
+    2: {"user_id": 2, "tenant": "agencyB", "role": "agent"},
+    3: {"user_id": 3, "tenant": "agencyA", "role": "admin"},
+    4: {"user_id": 4, "tenant": "agencyA", "role": "customer"},
+}
+
+TENANT_BOOKINGS = {
+    201: {"id": 201, "tenant_id": "agencyA", "destination": "Paris"},
+    202: {"id": 202, "tenant_id": "agencyB", "destination": "Tokyo"},
+}
+
+# Counter for DELETE calls (never actually mutates data; lets tests assert the
+# safety policy blocked the request before it arrived here).
+DELETE_CALLS: int = 0
+
+
+def _get_identity(authorization: Optional[str]) -> dict:
+    """Resolve token → full identity dict; raises 401 for unknown/missing tokens."""
+    if authorization not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return IDENTITIES[TOKENS[authorization]]
+
+
+def _get_tenant_booking(booking_id: int) -> dict:
+    if booking_id not in TENANT_BOOKINGS:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return TENANT_BOOKINGS[booking_id]
+
+
+# ── Tenant: vulnerable object endpoint ───────────────────────────────────────
+@app.get("/tenant/vuln/bookings/{booking_id}")
+async def tenant_vuln_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns ANY tenant booking to any authenticated user (cross-tenant leak)."""
+    _get_identity(authorization)
+    return _get_tenant_booking(booking_id)
+
+
+# ── Tenant: secure object endpoint ───────────────────────────────────────────
+@app.get("/tenant/secure/bookings/{booking_id}")
+async def tenant_secure_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns booking only if caller's tenant matches booking's tenant_id."""
+    identity = _get_identity(authorization)
+    booking = _get_tenant_booking(booking_id)
+    if identity["tenant"] != booking["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return booking
+
+
+# ── Tenant: public object endpoint ───────────────────────────────────────────
+@app.get("/tenant/public/bookings/{booking_id}")
+async def tenant_public_booking(booking_id: int):
+    """Returns booking to anyone; no auth required."""
+    return _get_tenant_booking(booking_id)
+
+
+# ── Tenant: spoof endpoint (honours X-Tenant-ID header) ──────────────────────
+@app.get("/tenant/spoof/bookings/{booking_id}")
+async def tenant_spoof_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+    x_tenant_id: Optional[str] = Header(default=None),
+):
+    """
+    Derives tenant from X-Tenant-ID header if present, else from token.
+    Returns 403 when the resolved tenant != booking tenant_id.
+    This is intentionally vulnerable to tenant-header spoofing.
+    """
+    identity = _get_identity(authorization)
+    effective_tenant = x_tenant_id if x_tenant_id is not None else identity["tenant"]
+    booking = _get_tenant_booking(booking_id)
+    if effective_tenant != booking["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return booking
+
+
+# ── Tenant: vulnerable collection endpoint ────────────────────────────────────
+@app.get("/tenant/vuln/bookings")
+async def tenant_vuln_bookings(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns ALL bookings to any authenticated user (cross-tenant collection leak)."""
+    _get_identity(authorization)
+    return list(TENANT_BOOKINGS.values())
+
+
+# ── Tenant: secure collection endpoint ───────────────────────────────────────
+@app.get("/tenant/secure/bookings")
+async def tenant_secure_bookings(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns only the caller's tenant bookings."""
+    identity = _get_identity(authorization)
+    return [b for b in TENANT_BOOKINGS.values() if b["tenant_id"] == identity["tenant"]]
+
+
+# ── RBAC: vulnerable admin endpoint (GET) ────────────────────────────────────
+@app.get("/rbac/vuln/admin/users")
+async def rbac_vuln_users(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns user list to ANY authenticated caller (RBAC vulnerable)."""
+    _get_identity(authorization)
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: secure admin endpoint (GET) ────────────────────────────────────────
+@app.get("/rbac/secure/admin/users")
+async def rbac_secure_users(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns user list only to admin-role callers; 403 otherwise."""
+    identity = _get_identity(authorization)
+    if identity["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: public admin endpoint (GET) ────────────────────────────────────────
+@app.get("/rbac/public/admin/users")
+async def rbac_public_users():
+    """Returns user list to anyone; no auth required."""
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: vulnerable DELETE endpoint ─────────────────────────────────────────
+@app.delete("/rbac/vuln/users/{user_id}")
+async def rbac_vuln_delete_user(
+    user_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Accepts DELETE from any authenticated caller (RBAC vulnerable).
+    Does NOT mutate any data; increments DELETE_CALLS so tests can assert
+    whether the request reached the application layer.
+    """
+    global DELETE_CALLS
+    _get_identity(authorization)
+    DELETE_CALLS += 1
+    return {"deleted": user_id}
+
+
+# =============================================================================
+# TENANT & RBAC ADDITIONS
+# New tokens, identities and endpoints added for tenant isolation / RBAC tests.
+# Existing TOKENS dict is NOT changed; new entries are merged in below.
+# =============================================================================
+
+TOKENS.update({
+    "Bearer adminTok": 3,
+    "Bearer custTok": 4,
+})
+
+IDENTITIES = {
+    1: {"user_id": 1, "tenant": "agencyA", "role": "agent"},
+    2: {"user_id": 2, "tenant": "agencyB", "role": "agent"},
+    3: {"user_id": 3, "tenant": "agencyA", "role": "admin"},
+    4: {"user_id": 4, "tenant": "agencyA", "role": "customer"},
+}
+
+TENANT_BOOKINGS = {
+    201: {"id": 201, "tenant_id": "agencyA", "destination": "Paris"},
+    202: {"id": 202, "tenant_id": "agencyB", "destination": "Tokyo"},
+}
+
+# Counter for DELETE calls (never actually mutates data; lets tests assert the
+# safety policy blocked the request before it arrived here).
+DELETE_CALLS: int = 0
+
+
+def _get_identity(authorization: Optional[str]) -> dict:
+    """Resolve token → full identity dict; raises 401 for unknown/missing tokens."""
+    if authorization not in TOKENS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return IDENTITIES[TOKENS[authorization]]
+
+
+def _get_tenant_booking(booking_id: int) -> dict:
+    if booking_id not in TENANT_BOOKINGS:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return TENANT_BOOKINGS[booking_id]
+
+
+# ── Tenant: vulnerable object endpoint ───────────────────────────────────────
+@app.get("/tenant/vuln/bookings/{booking_id}")
+async def tenant_vuln_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns ANY tenant booking to any authenticated user (cross-tenant leak)."""
+    _get_identity(authorization)
+    return _get_tenant_booking(booking_id)
+
+
+# ── Tenant: secure object endpoint ───────────────────────────────────────────
+@app.get("/tenant/secure/bookings/{booking_id}")
+async def tenant_secure_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns booking only if caller's tenant matches booking's tenant_id."""
+    identity = _get_identity(authorization)
+    booking = _get_tenant_booking(booking_id)
+    if identity["tenant"] != booking["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return booking
+
+
+# ── Tenant: public object endpoint ───────────────────────────────────────────
+@app.get("/tenant/public/bookings/{booking_id}")
+async def tenant_public_booking(booking_id: int):
+    """Returns booking to anyone; no auth required."""
+    return _get_tenant_booking(booking_id)
+
+
+# ── Tenant: spoof endpoint (honours X-Tenant-ID header) ──────────────────────
+@app.get("/tenant/spoof/bookings/{booking_id}")
+async def tenant_spoof_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+    x_tenant_id: Optional[str] = Header(default=None),
+):
+    """
+    Derives tenant from X-Tenant-ID header if present, else from token.
+    Returns 403 when the resolved tenant != booking tenant_id.
+    This is intentionally vulnerable to tenant-header spoofing.
+    """
+    identity = _get_identity(authorization)
+    effective_tenant = x_tenant_id if x_tenant_id is not None else identity["tenant"]
+    booking = _get_tenant_booking(booking_id)
+    if effective_tenant != booking["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return booking
+
+
+# ── Tenant: vulnerable collection endpoint ────────────────────────────────────
+@app.get("/tenant/vuln/bookings")
+async def tenant_vuln_bookings(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns ALL bookings to any authenticated user (cross-tenant collection leak)."""
+    _get_identity(authorization)
+    return list(TENANT_BOOKINGS.values())
+
+
+# ── Tenant: secure collection endpoint ───────────────────────────────────────
+@app.get("/tenant/secure/bookings")
+async def tenant_secure_bookings(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns only the caller's tenant bookings."""
+    identity = _get_identity(authorization)
+    return [b for b in TENANT_BOOKINGS.values() if b["tenant_id"] == identity["tenant"]]
+
+
+# ── RBAC: vulnerable admin endpoint (GET) ────────────────────────────────────
+@app.get("/rbac/vuln/admin/users")
+async def rbac_vuln_users(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns user list to ANY authenticated caller (RBAC vulnerable)."""
+    _get_identity(authorization)
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: secure admin endpoint (GET) ────────────────────────────────────────
+@app.get("/rbac/secure/admin/users")
+async def rbac_secure_users(
+    authorization: Optional[str] = Header(default=None),
+):
+    """Returns user list only to admin-role callers; 403 otherwise."""
+    identity = _get_identity(authorization)
+    if identity["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: public admin endpoint (GET) ────────────────────────────────────────
+@app.get("/rbac/public/admin/users")
+async def rbac_public_users():
+    """Returns user list to anyone; no auth required."""
+    return [{"id": 1, "email": "a@x.test"}, {"id": 2, "email": "b@x.test"}]
+
+
+# ── RBAC: vulnerable DELETE endpoint ─────────────────────────────────────────
+@app.delete("/rbac/vuln/users/{user_id}")
+async def rbac_vuln_delete_user(
+    user_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Accepts DELETE from any authenticated caller (RBAC vulnerable).
+    Does NOT mutate any data; increments DELETE_CALLS so tests can assert
+    whether the request reached the application layer.
+    """
+    global DELETE_CALLS
+    _get_identity(authorization)
+    DELETE_CALLS += 1
+    return {"deleted": user_id}
