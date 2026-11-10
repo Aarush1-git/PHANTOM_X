@@ -252,7 +252,7 @@ async def test_pipeline_real_flow_no_injected_baseline(live_server):
     """The check's own output must be enough for the pipeline to confirm /vuln."""
     result, ctx, runner = await _run_check(live_server, "/vuln/bookings/101")
     assert result.is_vulnerable
-    assert "baseline_body" in result.proof_data
+    assert "baseline_body" not in result.proof_data  # never persisted
     engine = SelfChallengingProofEngine(runner=runner, replays=3)
     package = await verify_and_package(result, ctx, engine, EvidenceCollector())
     assert package is not None

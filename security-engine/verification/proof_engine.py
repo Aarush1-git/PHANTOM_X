@@ -103,12 +103,28 @@ class SelfChallengingProofEngine:
         baseline_body: str = evidence.get("baseline_body", "")
         ignore_fields: list = evidence.get("ignore_fields", [])
 
+        # The baseline is never stored in findings/evidence (it may hold credentials),
+        # so re-fetch it as the legitimate owner when not supplied.
+        victim_headers: Dict[str, str] = evidence.get("victim_headers", {})
+        if not baseline_body and victim_headers:
+            try:
+                base_resp = await self.runner.execute_request(
+                    method="GET",
+                    url=attack_url,
+                    headers=victim_headers,
+                    safety_classification=SafetyClassification.SAFE_READ_ONLY,
+                )
+                if 200 <= base_resp.status_code < 300:
+                    baseline_body = base_resp.body
+            except Exception:
+                pass
+
         if not baseline_body:
             return VerificationVerdict(
                 is_confirmed=False,
                 reproducibility_rate=0.0,
                 confidence=0.0,
-                counter_evidence="No baseline body supplied; cannot verify finding.",
+                counter_evidence="No baseline body available (not supplied, owner re-fetch failed); cannot verify finding.",
                 reproduction_steps=f"1. GET {attack_url} as attacker.\n2. Not run: no baseline to compare against.",
             )
 
