@@ -31,7 +31,7 @@ def test_redact_body_json_keeps_business_data():
 
 
 def test_redact_text_catches_bearer_jwt_and_pairs():
-    text = "Authorization: Bearer abcdef123456 jwt=eyJhbGciOi.eyJzdWIiOiIx.sig api_key=XYZ123 ok=1"
+    text = "Authorization: Bearer abcdef123456\njwt=eyJhbGciOi.eyJzdWIiOiIx.sig api_key=XYZ123 ok=1"
     out = redact_text(text)
     assert "abcdef123456" not in out and "XYZ123" not in out and "eyJzdWIiOiIx" not in out
     assert "ok=1" in out
@@ -59,3 +59,52 @@ async def test_leaky_endpoint_evidence_has_no_credentials(live_server):
     blob = json.dumps(package.model_dump(), default=str) + result.evidence_request + result.evidence_response
     for secret in SECRETS:
         assert secret not in blob, f"{secret} leaked into evidence"
+
+
+# ── CodeRabbit follow-ups ────────────────────────────────────────────────────
+
+def test_quoted_value_with_spaces_fully_redacted_in_two_passes():
+    text = 'Error body: "authToken": "alpha bravo charlie" trailing'
+    once = redact_text(text)
+    twice = redact_text(once)
+    for out in (once, twice):
+        assert "alpha" not in out and "bravo" not in out and "charlie" not in out
+        assert "trailing" in out
+
+
+def test_short_bearer_token_redacted():
+    out = redact_text("Authorization: Bearer abc")
+    assert "abc" not in out
+    assert "abc" not in redact_text("see Bearer xy here")
+
+
+def test_digest_authorization_fully_redacted():
+    out = redact_text('Authorization: Digest username=x, response=abcdef123, nonce=zzz\nnext=line')
+    assert "abcdef123" not in out and "nonce" not in out
+    assert "next=line" in out
+    assert "abcdef123" not in redact_text(out)
+
+
+@pytest.mark.asyncio
+async def test_engine_reports_safe_reason_when_baseline_unavailable(live_server):
+    runner = ControlledHttpRunner(safety_policy=SecuritySafetyPolicy(allowed_hosts=["127.0.0.1", "localhost"]))
+    engine = SelfChallengingProofEngine(runner=runner)
+    base = {"attacker_headers": {"Authorization": "Bearer tokB"}, "baseline_body": ""}
+
+    blocked = await engine.verify_finding("x", {**base, "attack_url": "http://example.com/x",
+                                                "victim_headers": {"Authorization": "Bearer tokA"}})
+    assert not blocked.is_confirmed and "safety policy" in blocked.counter_evidence
+
+    denied = await engine.verify_finding("x", {**base, "attack_url": f"{live_server}/vuln/bookings/101",
+                                               "victim_headers": {"Authorization": "Bearer wrong"}})
+    assert not denied.is_confirmed and "HTTP 401" in denied.counter_evidence
+    assert "wrong" not in denied.counter_evidence
+
+    none = await engine.verify_finding("x", {**base, "attack_url": f"{live_server}/vuln/bookings/101"})
+    assert not none.is_confirmed and "no owner credentials" in none.counter_evidence
+
+
+def test_redaction_is_idempotent():
+    text = 'Authorization: Bearer abc\n"authToken": "a b c" session=zzz'
+    once = redact_text(text)
+    assert redact_text(once) == once

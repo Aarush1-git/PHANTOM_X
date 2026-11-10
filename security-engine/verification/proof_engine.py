@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from execution.http_runner import ControlledHttpRunner
+from safety.policy import SafetyViolationError
 from shared.enums.common import SafetyClassification
 
 # Headers whose values we corrupt to simulate an invalid token
@@ -106,6 +107,7 @@ class SelfChallengingProofEngine:
         # The baseline is never stored in findings/evidence (it may hold credentials),
         # so re-fetch it as the legitimate owner when not supplied.
         victim_headers: Dict[str, str] = evidence.get("victim_headers", {})
+        baseline_failure = "not supplied and no owner credentials to re-fetch"
         if not baseline_body and victim_headers:
             try:
                 base_resp = await self.runner.execute_request(
@@ -114,17 +116,23 @@ class SelfChallengingProofEngine:
                     headers=victim_headers,
                     safety_classification=SafetyClassification.SAFE_READ_ONLY,
                 )
-                if 200 <= base_resp.status_code < 300:
+                if not (200 <= base_resp.status_code < 300):
+                    baseline_failure = f"owner re-fetch returned HTTP {base_resp.status_code}"
+                elif not base_resp.body:
+                    baseline_failure = "owner re-fetch returned an empty body"
+                else:
                     baseline_body = base_resp.body
-            except Exception:
-                pass
+            except SafetyViolationError:
+                baseline_failure = "owner re-fetch blocked by safety policy"
+            except Exception as exc:  # reason only: exception text may hold credentials
+                baseline_failure = f"owner re-fetch failed ({type(exc).__name__})"
 
         if not baseline_body:
             return VerificationVerdict(
                 is_confirmed=False,
                 reproducibility_rate=0.0,
                 confidence=0.0,
-                counter_evidence="No baseline body available (not supplied, owner re-fetch failed); cannot verify finding.",
+                counter_evidence=f"No baseline body available ({baseline_failure}); cannot verify finding.",
                 reproduction_steps=f"1. GET {attack_url} as attacker.\n2. Not run: no baseline to compare against.",
             )
 
@@ -179,7 +187,7 @@ class SelfChallengingProofEngine:
             else:
                 failed_disproof.append("negative_control")
         except Exception as exc:
-            disproved_by.append(f"negative_control (inconclusive, request failed: {exc})")
+            disproved_by.append(f"negative_control (inconclusive, request failed: {type(exc).__name__})")
 
         # ── (c) Invalid-token control ─────────────────────────────────────────
         corrupted = _corrupt_headers(attacker_headers)
@@ -209,7 +217,7 @@ class SelfChallengingProofEngine:
         except _SkipControl:
             pass
         except Exception as exc:
-            disproved_by.append(f"invalid_token_control (inconclusive, request failed: {exc})")
+            disproved_by.append(f"invalid_token_control (inconclusive, request failed: {type(exc).__name__})")
 
         # ── (d) Fresh-request check ───────────────────────────────────────────
         try:
@@ -229,7 +237,7 @@ class SelfChallengingProofEngine:
                     f"HTTP {fresh_resp.status_code}; body did not match baseline)"
                 )
         except Exception as exc:
-            disproved_by.append(f"fresh_request (inconclusive, request failed: {exc})")
+            disproved_by.append(f"fresh_request (inconclusive, request failed: {type(exc).__name__})")
 
         # ── Verdict ───────────────────────────────────────────────────────────
         is_confirmed = len(disproved_by) == 0
