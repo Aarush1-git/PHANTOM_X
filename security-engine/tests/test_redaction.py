@@ -108,3 +108,12 @@ def test_redaction_is_idempotent():
     text = 'Authorization: Bearer abc\n"authToken": "a b c" session=zzz'
     once = redact_text(text)
     assert redact_text(once) == once
+
+
+def test_escaped_quotes_inside_quoted_credential_fully_redacted():
+    text = r'"authToken": "alpha \"bravo charlie\" delta" tail'
+    once = redact_text(text)
+    for out in (once, redact_text(once)):
+        for word in ("alpha", "bravo", "charlie", "delta"):
+            assert word not in out
+        assert "tail" in out
