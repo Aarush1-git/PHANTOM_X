@@ -19,7 +19,7 @@ Booking → owner mapping:
 The app binds exclusively to 127.0.0.1 so the safety policy allowlist is satisfied.
 """
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Response
 from typing import Optional
 
 app = FastAPI(title="PHANTOM-X Mock Vulnerable App")
@@ -110,3 +110,17 @@ async def flaky_get_booking(
         raise HTTPException(status_code=403, detail="Forbidden")
     return booking
 
+
+
+@app.get("/leaky/bookings/{booking_id}")
+async def leaky_get_booking(
+    booking_id: int,
+    response: Response,
+    authorization: Optional[str] = Header(default=None),
+):
+    """BOLA-vulnerable AND leaks credentials (cookie + token field) in the response."""
+    _get_user(authorization)
+    booking = dict(_get_booking(booking_id))
+    booking["access_token"] = "SECRET-TOKEN-XYZ"
+    response.set_cookie("session", "SECRET-COOKIE-123")
+    return booking

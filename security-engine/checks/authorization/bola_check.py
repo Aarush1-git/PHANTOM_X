@@ -21,6 +21,7 @@ import re
 from typing import Any, Dict, Optional
 
 from checks.base import BaseSecurityCheck, SecurityCheckContext, SecurityCheckResult
+from evidence.redact import build_response_dump
 from safety.policy import SafetyViolationError
 from shared.enums.common import SafetyClassification, VulnerabilitySeverity
 
@@ -103,7 +104,7 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
                     f"Headers: {_redact_headers(context.secondary_auth_headers)}\n"
                     f"Body: None"
                 )
-                evidence_resp = attack_resp.response_dump
+                evidence_resp = build_response_dump(attack_resp.status_code, attack_resp.headers, attack_resp.body)
 
             return SecurityCheckResult(
                 check_name=self.check_name,
@@ -232,7 +233,7 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
             f"Headers: {_redact_headers(context.secondary_auth_headers)}\n"
             f"Body: None"
         )
-        evidence_response = attack.response_dump
+        evidence_response = build_response_dump(attack.status_code, attack.headers, attack.body)
 
         proof_data: Dict[str, Any] = {
             "baseline_status": baseline.status_code,
@@ -266,7 +267,7 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
                 cvss_score=8.6,
                 evidence_request=evidence_request,
                 evidence_response=evidence_response,
-                proof_data={**proof_data, "baseline_body": baseline.body},
+                proof_data=proof_data,
             )
 
         if attack.status_code in (401, 403, 404):

@@ -22,6 +22,7 @@ from typing import Optional
 
 from checks.base import SecurityCheckContext, SecurityCheckResult
 from evidence.collector import EvidenceCollector, EvidencePackage
+from evidence.redact import redact_obj, redact_text
 from verification.proof_engine import SelfChallengingProofEngine
 
 
@@ -48,14 +49,15 @@ async def verify_and_package(
         return None
 
     # Build the evidence dict from proof_data + context
-    # The BOLA check stores User A's baseline body in proof_data (never tokens).
+    # The baseline body is NOT stored in proof_data (it may contain credentials);
+    # the engine re-fetches it as the owner using victim_headers.
     evidence = {
         "attack_url": result.proof_data.get("attack_url", context.target_url + context.endpoint_path),
         "victim_headers": context.auth_headers,
         "attacker_headers": context.secondary_auth_headers,
-        # An empty baseline makes the engine refuse to confirm (fail-safe).
-        "baseline_body": result.proof_data.get("baseline_body")
-        or context.parameters.get("_baseline_body", ""),
+        # Optional pre-fetched baseline; empty -> engine re-fetches, and refuses
+        # to confirm if it cannot (fail-safe).
+        "baseline_body": context.parameters.get("_baseline_body", ""),
         "ignore_fields": result.proof_data.get("ignore_fields", []),
     }
 
@@ -68,8 +70,9 @@ async def verify_and_package(
         return None
 
     return collector.package_evidence(
-        request_dump=result.evidence_request,
-        response_dump=result.evidence_response,
-        proof_data={**result.proof_data, "verdict": verdict.model_dump()},
+        # Second redaction layer: defence in depth before anything is stored.
+        request_dump=redact_text(result.evidence_request),
+        response_dump=redact_text(result.evidence_response),
+        proof_data=redact_obj({**result.proof_data, "verdict": verdict.model_dump()}),
         test_id=context.test_id,
     )
