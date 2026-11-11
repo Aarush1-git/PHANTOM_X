@@ -11,9 +11,27 @@ import {
   EvidenceResponse,
   RegressionResult,
   AuditLogResponse,
+  AuditOverviewResponse,
+  AuditIntegrityVerificationResponse,
+  ScanExecutionRecordResponse,
   ScopePermissionResponse,
+  ScopePolicyCreate,
+  ScopePolicyUpdate,
+  ScopePolicyResponse,
+  ScopeAuthorizeRequest,
+  ScopeSuspendRequest,
+  ScopeRevokeRequest,
+  TestValidationRequest,
+  TestValidationResult,
+  BlockedExecutionResponse,
   TokenResponse,
   UserLogin,
+  ReportDashboardMetrics,
+  ReportListPagination,
+  VulnerabilityReportDetail,
+  VulnerabilityReportListItem,
+  ReportStatusUpdateRequest,
+  StatusHistoryItem,
 } from "../types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -181,12 +199,66 @@ export const api = {
     },
   },
 
-  // Reports
+  // Reports (Feature 21: Vulnerability Reports)
   reports: {
+    getMetrics: async (appId?: string): Promise<ReportDashboardMetrics> => {
+      const params = appId ? { application_id: appId } : {};
+      const { data } = await apiClient.get<ReportDashboardMetrics>("/reports/metrics", { params });
+      return data;
+    },
     getSummary: async (appId?: string) => {
       const params = appId ? { app_id: appId } : {};
       const { data } = await apiClient.get("/reports/summary", { params });
       return data;
+    },
+    listReports: async (params?: {
+      search?: string;
+      severity?: string;
+      status?: string;
+      application_id?: string;
+      scan_id?: string;
+      start_date?: string;
+      end_date?: string;
+      page?: number;
+      limit?: number;
+    }): Promise<ReportListPagination> => {
+      const { data } = await apiClient.get<ReportListPagination>("/reports", { params });
+      return data;
+    },
+    getReport: async (reportId: string): Promise<VulnerabilityReportDetail> => {
+      const { data } = await apiClient.get<VulnerabilityReportDetail>(`/reports/${encodeURIComponent(reportId)}`);
+      return data;
+    },
+    generateReport: async (vulnId: string): Promise<VulnerabilityReportDetail> => {
+      const { data } = await apiClient.post<VulnerabilityReportDetail>(`/reports/generate/${vulnId}`);
+      return data;
+    },
+    generateAllForScan: async (scanId: string): Promise<VulnerabilityReportDetail[]> => {
+      const { data } = await apiClient.post<VulnerabilityReportDetail[]>(`/reports/scan/${scanId}/generate-all`);
+      return data;
+    },
+    updateStatus: async (
+      reportId: string,
+      payload: ReportStatusUpdateRequest
+    ): Promise<VulnerabilityReportDetail> => {
+      const { data } = await apiClient.patch<VulnerabilityReportDetail>(
+        `/reports/${encodeURIComponent(reportId)}/status`,
+        payload
+      );
+      return data;
+    },
+    getStatusHistory: async (reportId: string): Promise<StatusHistoryItem[]> => {
+      const { data } = await apiClient.get<StatusHistoryItem[]>(
+        `/reports/${encodeURIComponent(reportId)}/history`
+      );
+      return data;
+    },
+    exportReport: async (reportId: string, format: "pdf" | "json"): Promise<Blob | any> => {
+      const response = await apiClient.get(`/reports/${encodeURIComponent(reportId)}/export`, {
+        params: { format },
+        responseType: format === "pdf" ? "blob" : "json",
+      });
+      return response.data;
     },
   },
 
@@ -201,8 +273,71 @@ export const api = {
       const { data } = await apiClient.get<ScopePermissionResponse[]>("/settings/scope", { params });
       return data;
     },
-    listAuditLogs: async (): Promise<AuditLogResponse[]> => {
-      const { data } = await apiClient.get<AuditLogResponse[]>("/settings/audit-logs");
+    listAuditLogs: async (params?: Record<string, any>): Promise<AuditLogResponse[]> => {
+      const { data } = await apiClient.get<AuditLogResponse[]>("/settings/audit-logs", { params });
+      return data;
+    },
+    getAuditOverview: async (): Promise<AuditOverviewResponse> => {
+      const { data } = await apiClient.get<AuditOverviewResponse>("/settings/audit-logs/overview");
+      return data;
+    },
+    verifyAuditIntegrity: async (): Promise<AuditIntegrityVerificationResponse> => {
+      const { data } = await apiClient.get<AuditIntegrityVerificationResponse>("/settings/audit-logs/verify-integrity");
+      return data;
+    },
+    getAuditEvent: async (id: string): Promise<AuditLogResponse> => {
+      const { data } = await apiClient.get<AuditLogResponse>(`/settings/audit-logs/${id}`);
+      return data;
+    },
+    exportAuditLogs: async (): Promise<any[]> => {
+      const { data } = await apiClient.get<any[]>("/settings/audit-logs/export");
+      return data;
+    },
+    listExecutionHistory: async (params?: Record<string, any>): Promise<ScanExecutionRecordResponse[]> => {
+      const { data } = await apiClient.get<ScanExecutionRecordResponse[]>("/settings/execution-history", { params });
+      return data;
+    },
+    getScanExecutionHistory: async (scanId: string): Promise<ScanExecutionRecordResponse> => {
+      const { data } = await apiClient.get<ScanExecutionRecordResponse>(`/settings/execution-history/${scanId}`);
+      return data;
+    },
+    // Feature 26: Scope, Permission & Safety Management
+    listScopes: async (orgId?: string): Promise<ScopePolicyResponse[]> => {
+      const params = orgId ? { org_id: orgId } : {};
+      const { data } = await apiClient.get<ScopePolicyResponse[]>("/settings/scopes", { params });
+      return data;
+    },
+    getScope: async (appId: string): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.get<ScopePolicyResponse>(`/settings/scopes/${appId}`);
+      return data;
+    },
+    createOrUpdateScope: async (appId: string, payload: ScopePolicyCreate): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.post<ScopePolicyResponse>(`/settings/scopes/${appId}`, payload);
+      return data;
+    },
+    updateScope: async (appId: string, payload: ScopePolicyUpdate): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.put<ScopePolicyResponse>(`/settings/scopes/${appId}`, payload);
+      return data;
+    },
+    authorizeScope: async (appId: string, payload: ScopeAuthorizeRequest): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.post<ScopePolicyResponse>(`/settings/scopes/${appId}/authorize`, payload);
+      return data;
+    },
+    suspendScope: async (appId: string, payload: ScopeSuspendRequest): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.post<ScopePolicyResponse>(`/settings/scopes/${appId}/suspend`, payload);
+      return data;
+    },
+    revokeScope: async (appId: string, payload: ScopeRevokeRequest): Promise<ScopePolicyResponse> => {
+      const { data } = await apiClient.post<ScopePolicyResponse>(`/settings/scopes/${appId}/revoke`, payload);
+      return data;
+    },
+    validateTest: async (payload: TestValidationRequest): Promise<TestValidationResult> => {
+      const { data } = await apiClient.post<TestValidationResult>("/settings/validate-test", payload);
+      return data;
+    },
+    listBlockedExecutions: async (appId?: string): Promise<BlockedExecutionResponse[]> => {
+      const params = appId ? { app_id: appId } : {};
+      const { data } = await apiClient.get<BlockedExecutionResponse[]>("/settings/blocked-executions", { params });
       return data;
     },
   },

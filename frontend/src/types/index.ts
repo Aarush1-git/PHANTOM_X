@@ -337,13 +337,84 @@ export interface RegressionResult {
 export interface AuditLogResponse {
   id: string;
   organization_id: string;
+  sequence_number?: number;
   user_id?: string;
+  actor_email?: string;
+  actor_role?: string;
+  application_id?: string;
+  scan_id?: string;
+  category?: string;
+  event_type?: string;
   action: string;
+  status?: string;
+  severity?: string;
+  source_module?: string;
   target_type: string;
   target_id?: string;
   details: Record<string, unknown>;
   ip_address?: string;
+  correlation_id?: string;
+  event_hash?: string;
+  prev_event_hash?: string;
   created_at: string;
+  updated_at?: string;
+}
+
+// Feature 25: Audit Logs & Execution History Types
+export type AuditCategory =
+  | "AUTHENTICATION"
+  | "APPLICATION_MANAGEMENT"
+  | "AUTHORIZATION"
+  | "SECURITY_TESTING"
+  | "VULNERABILITY"
+  | "PLATFORM";
+
+export interface AuditOverviewResponse {
+  total_events: number;
+  successful_events: number;
+  failed_events: number;
+  blocked_events: number;
+  critical_events: number;
+  categories_breakdown: Record<string, number>;
+  generated_at: string;
+}
+
+export interface AuditIntegrityVerificationResponse {
+  is_intact: boolean;
+  records_checked: number;
+  anomalies: string[];
+  broken_event_ids: string[];
+  verified_at: string;
+  genesis_event_id?: string;
+  latest_event_id?: string;
+  chain_head_hash?: string;
+}
+
+export interface ScanLifecycleEvent {
+  status: string;
+  timestamp: string;
+  note?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ScanExecutionRecordResponse {
+  id: string;
+  organization_id: string;
+  scan_id: string;
+  application_id: string;
+  initiating_user_id?: string;
+  initiating_user?: string;
+  start_time?: string;
+  end_time?: string;
+  duration_seconds?: number;
+  final_status: string;
+  tests_executed: number;
+  tests_blocked: number;
+  verified_findings: number;
+  failure_reason?: string;
+  lifecycle_events: ScanLifecycleEvent[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ScopePermissionResponse {
@@ -356,6 +427,108 @@ export interface ScopePermissionResponse {
   is_destructive_allowed: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// Feature 26: Scope, Permission & Safety Management Types
+export type ScopeStatus = "DRAFT" | "ACTIVE" | "SUSPENDED" | "EXPIRED";
+export type AuthorizationStatus = "PENDING" | "AUTHORIZED" | "REVOKED" | "EXPIRED";
+
+export interface ScopePolicyBase {
+  target_domain: string;
+  base_url: string;
+  permitted_paths: string[];
+  excluded_paths: string[];
+  rate_limit_rps: number;
+  max_concurrency: number;
+  max_scan_duration_minutes: number;
+  allowed_methods: string[];
+  restricted_endpoint_patterns: string[];
+  require_synthetic_auth: boolean;
+  allow_destructive: boolean;
+}
+
+export interface ScopePolicyCreate extends ScopePolicyBase {
+  application_id?: string;
+}
+
+export interface ScopePolicyUpdate {
+  target_domain?: string;
+  base_url?: string;
+  permitted_paths?: string[];
+  excluded_paths?: string[];
+  rate_limit_rps?: number;
+  max_concurrency?: number;
+  max_scan_duration_minutes?: number;
+  allowed_methods?: string[];
+  restricted_endpoint_patterns?: string[];
+  require_synthetic_auth?: boolean;
+  allow_destructive?: boolean;
+  scope_status?: ScopeStatus;
+}
+
+export interface ScopePolicyResponse extends ScopePolicyBase {
+  id: string;
+  organization_id: string;
+  application_id: string;
+  application_name?: string;
+  scope_status: ScopeStatus;
+  authorization_status: AuthorizationStatus;
+  authorized_by?: string;
+  authorizer_role?: string;
+  authorization_notes?: string;
+  valid_from?: string;
+  valid_until?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScopeAuthorizeRequest {
+  authorized_by: string;
+  authorizer_role: string;
+  valid_days: number;
+  authorization_notes?: string;
+}
+
+export interface ScopeSuspendRequest {
+  reason: string;
+}
+
+export interface ScopeRevokeRequest {
+  reason: string;
+}
+
+export interface TestValidationRequest {
+  application_id?: string;
+  target_url: string;
+  http_method?: string;
+  payload_sample?: string;
+  source_agent?: string;
+  dry_run?: boolean;
+}
+
+export interface TestValidationResult {
+  is_allowed: boolean;
+  violation_category?: string;
+  reason: string;
+  application_id?: string;
+  target_url: string;
+  http_method: string;
+  checked_at: string;
+}
+
+export interface BlockedExecutionResponse {
+  id: string;
+  organization_id: string;
+  application_id?: string;
+  application_name?: string;
+  target_url: string;
+  http_method: string;
+  violation_category: string;
+  blocked_reason: string;
+  payload_sample?: string;
+  source_agent?: string;
+  client_ip?: string;
+  created_at: string;
 }
 
 // ==============================================================================
@@ -385,3 +558,108 @@ export interface TokenResponse {
   email: string;
   role: UserRole;
 }
+
+// ==============================================================================
+// 12. FEATURE 21: VULNERABILITY REPORTS
+// ==============================================================================
+
+export type ReportLifecycleStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "FIXED"
+  | "ACCEPTED_RISK"
+  | "FALSE_POSITIVE"
+  | "REOPENED";
+
+export interface StatusHistoryItem {
+  id: string;
+  report_id: string;
+  organization_id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_user_id?: string;
+  changed_by_email?: string;
+  reason?: string;
+  created_at: string;
+}
+
+export interface SanitizedEvidenceItem {
+  id: string;
+  request_dump: string;
+  response_dump: string;
+  proof_data: Record<string, any>;
+  screenshot_url?: string;
+  har_entry?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface VulnerabilityReportListItem {
+  id: string;
+  report_id: string;
+  vulnerability_id: string;
+  application_id: string;
+  application_name?: string;
+  scan_id?: string;
+  title: string;
+  severity: VulnerabilitySeverity;
+  status: ReportLifecycleStatus;
+  cvss_score?: number;
+  cwe_id?: string;
+  endpoint: string;
+  http_method: string;
+  business_impact: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VulnerabilityReportDetail {
+  id: string;
+  report_id: string;
+  organization_id: string;
+  vulnerability_id: string;
+  application_id: string;
+  application_name?: string;
+  scan_id?: string;
+  title: string;
+  severity: VulnerabilitySeverity;
+  status: ReportLifecycleStatus;
+  cvss_score?: number;
+  cwe_id?: string;
+  endpoint: string;
+  http_method: string;
+  technical_details: Record<string, any>;
+  expected_behavior: string;
+  actual_behavior: string;
+  business_impact: string;
+  reproduction_steps: string[];
+  remediation_advice: string;
+  evidence_summary: Record<string, any>;
+  evidences: SanitizedEvidenceItem[];
+  status_history: StatusHistoryItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReportStatusUpdateRequest {
+  new_status: ReportLifecycleStatus;
+  reason?: string;
+}
+
+export interface ReportDashboardMetrics {
+  total_reports: number;
+  severity_distribution: Record<string, number>;
+  status_distribution: Record<string, number>;
+  critical_and_high_open: number;
+  remediation_rate: number;
+  total_applications: number;
+  total_scans: number;
+}
+
+export interface ReportListPagination {
+  items: VulnerabilityReportListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+

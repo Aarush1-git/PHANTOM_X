@@ -44,6 +44,56 @@ async def get_current_user_optional(
         return None
 
 
+async def get_audit_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    """
+    Enforces authentication for audit log and security intelligence endpoints.
+    In production environments (or when ALLOW_DEV_ANONYMOUS_AUDIT is False),
+    an authenticated user is strictly required; missing or invalid tokens return 401.
+    A local-development bypass is active ONLY when ENVIRONMENT == 'development' AND
+    ALLOW_DEV_ANONYMOUS_AUDIT is explicitly True.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required: Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    is_dev_override_allowed = (
+        settings.ENVIRONMENT == "development" and
+        getattr(settings, "ALLOW_DEV_ANONYMOUS_AUDIT", False) is True
+    )
+
+    if not token:
+        if is_dev_override_allowed:
+            return None
+        raise credentials_exception
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except Exception:
+        raise credentials_exception
+
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+        result = await db.execute(select(User).where(User.id == user_uuid))
+        user = result.scalars().first()
+        if user is None or not user.is_active:
+            raise credentials_exception
+        return user
+    except ValueError:
+        raise credentials_exception
+
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "phantom-dev-secret-key-32-chars-long-minimum!"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
+    ALLOW_DEV_ANONYMOUS_AUDIT: bool = True  # Dev testing mechanism; strictly ignored and blocked in production
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./phantom_x.db"

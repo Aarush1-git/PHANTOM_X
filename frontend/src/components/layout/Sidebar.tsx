@@ -6,6 +6,7 @@ import {
   Server,
   Compass,
   Radar,
+  GitCompare,
   Bug,
   GitFork,
   FileSearch,
@@ -14,6 +15,7 @@ import {
   Terminal,
   Settings,
   ScrollText,
+  Wrench,
 } from "lucide-react";
 
 export const Sidebar: React.FC = () => {
@@ -22,11 +24,13 @@ export const Sidebar: React.FC = () => {
     { label: "Applications", path: "/applications", icon: Server },
     { label: "API Discovery", path: "/discovery", icon: Compass },
     { label: "Security Scans", path: "/scans", icon: Radar },
+    { label: "Scan History & Diff", path: "/scan-history", icon: GitCompare },
     { label: "Vulnerabilities", path: "/vulnerabilities", icon: Bug },
     { label: "Attack Chains", path: "/attack-chains", icon: GitFork },
     { label: "Evidence Explorer", path: "/evidence", icon: FileSearch },
-    { label: "Regression Monitor", path: "/regression", icon: History },
+    { label: "Time-Travel Regression", path: "/time-travel", icon: History },
     { label: "Reports", path: "/reports", icon: FileText },
+    { label: "Remediation", path: "/remediation", icon: Wrench },
     { label: "Playground", path: "/playground", icon: Terminal },
     { label: "Settings & Scope", path: "/settings", icon: Settings },
     { label: "Audit Logs", path: "/audit-logs", icon: ScrollText },

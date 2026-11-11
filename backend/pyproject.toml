@@ -30,6 +30,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
+addopts = "-p no:anyio"
 testpaths = ["tests", "../ai-engine/tests", "../security-engine/tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"

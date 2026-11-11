@@ -1,76 +1,187 @@
 import React, { useState, useEffect } from "react";
-import { ScrollText, Shield } from "lucide-react";
+import {
+  ScrollText,
+  Shield,
+  Layers,
+  History,
+  Hash,
+  Download,
+  Clock,
+  ListFilter,
+  CheckCircle2,
+} from "lucide-react";
 import { PageHeader } from "../components/common/PageHeader";
-import { SearchFilterBar } from "../components/common/SearchFilterBar";
-import { EmptyState } from "../components/common/EmptyState";
-import { LoadingSpinner } from "../components/common/LoadingSpinner";
 import { api } from "../services/api";
-import { AuditLogResponse } from "../types";
+import {
+  AuditLogResponse,
+  AuditOverviewResponse,
+  ScanExecutionRecordResponse,
+} from "../types";
+import { AuditOverviewStats } from "../components/audit/AuditOverviewStats";
+import { AuditEventTable } from "../components/audit/AuditEventTable";
+import { AuditEventTimeline } from "../components/audit/AuditEventTimeline";
+import { AuditEventDetailModal } from "../components/audit/AuditEventDetailModal";
+import { ScanExecutionHistoryView } from "../components/audit/ScanExecutionHistoryView";
+import { AuditIntegrityPanel } from "../components/audit/AuditIntegrityPanel";
+
+type TabType = "events" | "execution-history" | "integrity";
 
 export const AuditLogsPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLogResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<TabType>("events");
+  const [viewMode, setViewMode] = useState<"table" | "timeline">("table");
+  const [events, setEvents] = useState<AuditLogResponse[]>([]);
+  const [overview, setOverview] = useState<AuditOverviewResponse | null>(null);
+  const [executionRecords, setExecutionRecords] = useState<ScanExecutionRecordResponse[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<AuditLogResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const fetchAuditData = async () => {
+    try {
+      setIsLoading(true);
+      const [eventsData, overviewData, recordsData] = await Promise.all([
+        api.settings.listAuditLogs().catch(() => []),
+        api.settings.getAuditOverview().catch(() => null),
+        api.settings.listExecutionHistory().catch(() => []),
+      ]);
+
+      setEvents(eventsData);
+      setOverview(overviewData);
+      setExecutionRecords(recordsData);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setIsLoading(true);
-        const data = await api.settings.listAuditLogs();
-        setLogs(data);
-      } catch {
-        setLogs([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchLogs();
+    fetchAuditData();
   }, []);
+
+  const handleExport = async () => {
+    try {
+      const data = await api.settings.exportAuditLogs();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `phantom-x-audit-logs-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to export audit logs.");
+    }
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Security Audit Logs & Decision Traceability"
-        description="Immutable audit trail of operator approvals, policy authorizations, and autonomous agent test dispatches."
+        title="Security Audit Logs & Execution History"
+        description="Immutable, tamper-evident audit ledger capturing authentication, policy authorizations, scan lifecycle execution, and operator approvals."
       />
 
-      <SearchFilterBar searchQuery={search} onSearchChange={setSearch} placeholder="Filter audit events by action or actor..." />
+      {/* Tabs */}
+      <div className="flex border-b border-slate-800 space-x-1">
+        <button
+          onClick={() => setActiveTab("events")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === "events"
+              ? "border-cyan-400 text-cyan-400 font-semibold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <ScrollText className="w-4 h-4" />
+          <span>Audit Event Ledger ({events.length})</span>
+        </button>
 
-      {isLoading ? (
-        <LoadingSpinner />
-      ) : logs.length === 0 ? (
-        <EmptyState
-          icon={ScrollText}
-          title="No Audit Records Available"
-          description="All safety decisions, plan validations, and operator actions will be logged here for compliance auditing."
-        />
-      ) : (
-        <div className="bg-phantom-900 border border-slate-800 rounded-lg overflow-hidden font-mono text-xs">
-          <table className="w-full text-left">
-            <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400">
-              <tr>
-                <th className="p-3">TIMESTAMP</th>
-                <th className="p-3">ACTION</th>
-                <th className="p-3">TARGET TYPE</th>
-                <th className="p-3">TARGET ID</th>
-                <th className="p-3">IP ADDRESS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-800/30">
-                  <td className="p-3 text-slate-400">{new Date(log.created_at).toLocaleString()}</td>
-                  <td className="p-3 font-semibold text-cyan-400">{log.action}</td>
-                  <td className="p-3 text-slate-300">{log.target_type}</td>
-                  <td className="p-3 text-slate-500">{log.target_id || "-"}</td>
-                  <td className="p-3 text-slate-400">{log.ip_address || "127.0.0.1"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <button
+          onClick={() => setActiveTab("execution-history")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === "execution-history"
+              ? "border-cyan-400 text-cyan-400 font-semibold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Scan Execution History ({executionRecords.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("integrity")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+            activeTab === "integrity"
+              ? "border-cyan-400 text-cyan-400 font-semibold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Hash className="w-4 h-4" />
+          <span>Tamper-Evident Integrity Check</span>
+        </button>
+      </div>
+
+      {/* TAB 1: Audit Event Ledger */}
+      {activeTab === "events" && (
+        <div className="space-y-4">
+          <AuditOverviewStats overview={overview} isLoading={isLoading} />
+
+          {/* Table / Timeline View Toggle */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-slate-400 font-mono">
+              Displaying {events.length} immutable events in organization stream
+            </span>
+            <div className="flex items-center bg-slate-950 p-1 rounded border border-slate-800 text-xs">
+              <button
+                onClick={() => setViewMode("table")}
+                className={`px-3 py-1 rounded transition-colors ${
+                  viewMode === "table" ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Table View
+              </button>
+              <button
+                onClick={() => setViewMode("timeline")}
+                className={`px-3 py-1 rounded transition-colors ${
+                  viewMode === "timeline" ? "bg-cyan-500/20 text-cyan-300 font-semibold" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Timeline View
+              </button>
+            </div>
+          </div>
+
+          {viewMode === "table" ? (
+            <AuditEventTable
+              events={events}
+              isLoading={isLoading}
+              onSelectEvent={(ev) => setSelectedEvent(ev)}
+              onExport={handleExport}
+              onRefresh={fetchAuditData}
+            />
+          ) : (
+            <AuditEventTimeline
+              events={events}
+              onSelectEvent={(ev) => setSelectedEvent(ev)}
+            />
+          )}
         </div>
       )}
+
+      {/* TAB 2: Scan Execution History */}
+      {activeTab === "execution-history" && (
+        <ScanExecutionHistoryView
+          records={executionRecords}
+          isLoading={isLoading}
+          onRefresh={fetchAuditData}
+        />
+      )}
+
+      {/* TAB 3: Cryptographic Integrity Verification */}
+      {activeTab === "integrity" && <AuditIntegrityPanel />}
+
+      {/* Event Detail Inspection Modal */}
+      <AuditEventDetailModal
+        isOpen={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        event={selectedEvent}
+      />
     </div>
   );
 };
-
