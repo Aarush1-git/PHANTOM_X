@@ -1,0 +1,408 @@
+{
+  "name": "phantom_mock_v1",
+  "version": "1.0.0",
+  "description": "Deterministic ground-truth benchmark suite for PHANTOM-X authorization checks and safety engine.",
+  "identities": {
+    "alpha_admin": {
+      "headers": {
+        "Authorization": "Bearer adminTok"
+      }
+    },
+    "alpha_agent": {
+      "headers": {
+        "Authorization": "Bearer tokA"
+      }
+    },
+    "beta_agent": {
+      "headers": {
+        "Authorization": "Bearer tokB"
+      }
+    },
+    "alpha_customer": {
+      "headers": {
+        "Authorization": "Bearer custTok"
+      }
+    }
+  },
+  "plan_scenarios": [
+    "cross_tenant_booking_access",
+    "role_bypass",
+    "property_exposure",
+    "workflow_abuse",
+    "supplier_isolation_failure",
+    "authentication_inconsistency"
+  ],
+  "cases": [
+    {
+      "id": "BOLA-001",
+      "scenario": "cross_tenant_booking_access",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/vuln/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "cross-user booking exposure confirmed by proof engine"
+    },
+    {
+      "id": "BOLA-002",
+      "scenario": "control",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/secure/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "secure endpoint returning 403 to cross-user access"
+    },
+    {
+      "id": "BOLA-003",
+      "scenario": "control",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/public/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "public data"
+    },
+    {
+      "id": "BOLA-004",
+      "scenario": "control",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/flaky/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "REJECTED",
+      "stateful": true,
+      "enabled": true,
+      "notes": "non-reproducible; the check flags it, the proof engine must reject"
+    },
+    {
+      "id": "BOLA-005",
+      "scenario": "cross_tenant_booking_access",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/partial/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "NEEDS_HUMAN_REVIEW",
+      "stateful": true,
+      "enabled": true,
+      "notes": "intermittent"
+    },
+    {
+      "id": "BOLA-006",
+      "scenario": "authentication_inconsistency",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/lenient/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "NEEDS_HUMAN_REVIEW",
+      "stateful": false,
+      "enabled": true,
+      "notes": "accepts any Authorization value"
+    },
+    {
+      "id": "BOLA-007",
+      "scenario": "cross_tenant_booking_access",
+      "category": "bola",
+      "check": "BOLAOwnershipCheck",
+      "path": "/cache/vuln/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "INCONCLUSIVE",
+      "stateful": false,
+      "enabled": true,
+      "notes": "cache indicators"
+    },
+    {
+      "id": "TEN-001",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/vuln/bookings/201",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "object"
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "tenant object exposure"
+    },
+    {
+      "id": "TEN-002",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/secure/bookings/201",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "object"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "secure tenant object"
+    },
+    {
+      "id": "TEN-003",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/public/bookings/201",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "object"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "public tenant object"
+    },
+    {
+      "id": "TEN-004",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/vuln/bookings",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "list",
+        "tenant_a_id": "agencyA",
+        "tenant_field": "tenant_id"
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "collection-level cross-tenant data leak"
+    },
+    {
+      "id": "TEN-005",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/secure/bookings",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "list",
+        "tenant_a_id": "agencyA",
+        "tenant_field": "tenant_id"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "isolated tenant collection"
+    },
+    {
+      "id": "TEN-006",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/spoof/bookings/201",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "spoof",
+        "tenant_header": "X-Tenant-ID",
+        "tenant_a_id": "agencyA"
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "tenant-header spoofing bypass"
+    },
+    {
+      "id": "TEN-007",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/secure/bookings/201",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "spoof",
+        "tenant_header": "X-Tenant-ID",
+        "tenant_a_id": "agencyA"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "secure against spoofed tenant header"
+    },
+    {
+      "id": "TEN-008",
+      "scenario": "cross_tenant_booking_access",
+      "category": "tenant_isolation",
+      "check": "TenantIsolationCheck",
+      "path": "/tenant/vuln/bookings/999",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "beta_agent",
+      "params": {
+        "mode": "object"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "CHECK_INCONCLUSIVE",
+      "stateful": false,
+      "enabled": true,
+      "notes": "resource missing"
+    },
+    {
+      "id": "RBAC-001",
+      "scenario": "role_bypass",
+      "category": "rbac",
+      "check": "RBACCheck",
+      "path": "/rbac/vuln/admin/users",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "alpha_customer",
+      "params": {
+        "role_label": "customer"
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "customer role accesses admin endpoint"
+    },
+    {
+      "id": "RBAC-002",
+      "scenario": "role_bypass",
+      "category": "rbac",
+      "check": "RBACCheck",
+      "path": "/rbac/secure/admin/users",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "alpha_customer",
+      "params": {
+        "role_label": "customer"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "customer role denied access"
+    },
+    {
+      "id": "RBAC-003",
+      "scenario": "role_bypass",
+      "category": "rbac",
+      "check": "RBACCheck",
+      "path": "/rbac/public/admin/users",
+      "method": "GET",
+      "owner": "alpha_admin",
+      "attacker": "alpha_customer",
+      "params": {
+        "role_label": "customer"
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "public admin user list"
+    },
+    {
+      "id": "SAFE-001",
+      "scenario": "safety",
+      "category": "safety",
+      "check": "BOLAOwnershipCheck",
+      "path": "/vuln/bookings/101",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "n/a",
+      "expected_outcome": "BLOCKED",
+      "stateful": false,
+      "enabled": true,
+      "target_url_override": "http://example.com",
+      "notes": "out-of-scope host"
+    },
+    {
+      "id": "SAFE-002",
+      "scenario": "safety",
+      "category": "safety",
+      "check": "BOLAOwnershipCheck",
+      "path": "/latest/meta-data/",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "beta_agent",
+      "params": {},
+      "ground_truth": "n/a",
+      "expected_outcome": "BLOCKED",
+      "stateful": false,
+      "enabled": true,
+      "target_url_override": "http://169.254.169.254",
+      "notes": "disallowed IP"
+    },
+    {
+      "id": "SAFE-003",
+      "scenario": "safety",
+      "category": "safety",
+      "check": "RBACCheck",
+      "path": "/rbac/vuln/users/1",
+      "method": "DELETE",
+      "owner": "alpha_admin",
+      "attacker": "alpha_customer",
+      "params": {
+        "role_label": "customer"
+      },
+      "ground_truth": "n/a",
+      "expected_outcome": "REFUSED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "state-changing, zero requests"
+    }
+  ]
+}
+
