@@ -494,8 +494,164 @@ async def partial_get_booking(
     return booking
 
 
+# ── Feature 17: Authentication endpoints ─────────────────────────────────────
+_authn_flaky_hits: int = 0
+
+
+@app.get("/authn/secure/profile")
+async def authn_secure_profile(authorization: Optional[str] = Header(default=None)):
+    if authorization == "Bearer tokA":
+        return {"id": 1, "email": "a@x.test"}
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/authn/missing/profile")
+async def authn_missing_profile():
+    return {"id": 1, "email": "a@x.test"}
+
+
+@app.get("/authn/lax/profile")
+async def authn_lax_profile(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.strip():
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    token = authorization.strip()
+    if token == "Bearer":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    # Reject JWTs so unsigned_jwt is not accepted (CWE-287 is tested via bearer_null / garbage_token)
+    if "eyJ" in token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return {"id": 1, "email": "a@x.test"}
+
+
+@app.get("/authn/jwtnone/profile")
+async def authn_jwtnone_profile(authorization: Optional[str] = Header(default=None)):
+    if authorization == "Bearer tokA":
+        return {"id": 1, "email": "a@x.test"}
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+        parts = token.split(".")
+        if len(parts) == 3 and parts[2] == "":
+            return {"id": 1, "email": "a@x.test"}
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/authn/flaky/profile")
+async def authn_flaky_profile(authorization: Optional[str] = Header(default=None)):
+    global _authn_flaky_hits
+    if not authorization:
+        _authn_flaky_hits += 1
+        if _authn_flaky_hits == 1:
+            return {"id": 1, "email": "a@x.test"}
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if authorization == "Bearer tokA":
+        return {"id": 1, "email": "a@x.test"}
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/authn/public/info")
+async def authn_public_info():
+    return {"info": "public"}
+
+
+# ── Feature 17: Input validation endpoints ───────────────────────────────────
+_validate_flaky_seen: set = set()
+
+
+@app.get("/validate/secure/items")
+async def validate_secure_items(id: Optional[str] = None):
+    if id is not None and id.isdigit():
+        return {"id": int(id)}
+    raise HTTPException(status_code=422, detail="invalid id")
+
+
+@app.get("/validate/vuln/items")
+async def validate_vuln_items(id: Optional[str] = None):
+    if id is not None and id.isdigit():
+        return {"id": int(id)}
+    # Trigger 500 with stack trace disclosure
+    return Response(
+        content="Traceback (most recent call last)\nValueError: invalid literal for int()",
+        status_code=500,
+        media_type="text/plain",
+    )
+
+
+@app.get("/validate/500only/items")
+async def validate_500only_items(id: Optional[str] = None):
+    if id is not None and id.isdigit():
+        return {"id": int(id)}
+    return Response(
+        content="Internal Server Error",
+        status_code=500,
+        media_type="text/plain",
+    )
+
+
+@app.get("/validate/flaky/items")
+async def validate_flaky_items(id: Optional[str] = None):
+    global _validate_flaky_seen
+    if id is not None and id.isdigit():
+        return {"id": int(id)}
+    if id not in _validate_flaky_seen:
+        _validate_flaky_seen.add(id)
+        return Response(
+            content="Internal Server Error",
+            status_code=500,
+            media_type="text/plain",
+        )
+    raise HTTPException(status_code=422, detail="invalid id")
+
+
+@app.get("/validate/ratelimited/items")
+async def validate_ratelimited_items(id: Optional[str] = None):
+    if id is not None and id.isdigit():
+        return {"id": int(id)}
+    raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+
+# ── Feature 17: CORS and HTTP Methods endpoints ──────────────────────────────
+@app.get("/cors/vuln/data")
+async def cors_vuln_data(response: Response, origin: Optional[str] = Header(default=None)):
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return {"data": "cors_vuln"}
+
+
+@app.get("/cors/reflect-nocreds/data")
+async def cors_reflect_nocreds_data(response: Response, origin: Optional[str] = Header(default=None)):
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    return {"data": "cors_reflect_nocreds"}
+
+
+@app.get("/cors/wildcard/data")
+async def cors_wildcard_data(response: Response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return {"data": "cors_wildcard"}
+
+
+@app.get("/cors/secure/data")
+async def cors_secure_data():
+    return {"data": "cors_secure"}
+
+
+@app.options("/methods/vuln/thing")
+async def methods_vuln_thing(response: Response):
+    response.headers["Allow"] = "GET, HEAD, OPTIONS, TRACE, DELETE"
+    return Response(status_code=200, headers={"Allow": "GET, HEAD, OPTIONS, TRACE, DELETE"})
+
+
+@app.options("/methods/secure/thing")
+async def methods_secure_thing(response: Response):
+    response.headers["Allow"] = "GET, HEAD, OPTIONS"
+    return Response(status_code=200, headers={"Allow": "GET, HEAD, OPTIONS"})
+
+
 def reset_counters():
-    """Clears the /flaky and /partial counters."""
-    global _flaky_hits, _partial_hits
+    """Clears the /flaky, /partial, and feature 17 counters."""
+    global _flaky_hits, _partial_hits, _authn_flaky_hits, _validate_flaky_seen
     _flaky_hits.clear()
     _partial_hits.clear()
+    _authn_flaky_hits = 0
+    _validate_flaky_seen.clear()
