@@ -28,6 +28,12 @@ htmlcov/
 *.sqlite3
 *.db
 
+#Virtual Environment 
+.venv/
+
+#local run artifacts
+security-engine/benchmark_results/
+
 # Node / Frontend
 node_modules/
 .npm
