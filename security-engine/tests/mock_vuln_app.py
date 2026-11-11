@@ -442,3 +442,60 @@ async def rbac_vuln_delete_user(
     _get_identity(authorization)
     DELETE_CALLS += 1
     return {"deleted": user_id}
+
+
+# ── Cache check endpoint ─────────────────────────────────────────────────────
+@app.get("/cache/vuln/bookings/{booking_id}")
+async def cache_vuln_get_booking(
+    booking_id: int,
+    response: Response,
+    authorization: Optional[str] = Header(default=None),
+):
+    """Like /vuln but adds response headers Age: 30 and X-Cache: HIT."""
+    _get_user(authorization)
+    booking = _get_booking(booking_id)
+    response.headers["Age"] = "30"
+    response.headers["X-Cache"] = "HIT"
+    return booking
+
+
+# ── Lenient auth endpoint ────────────────────────────────────────────────────
+@app.get("/lenient/bookings/{booking_id}")
+async def lenient_get_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """401 if there is no Authorization header at all; ANY value -> returns the booking."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return _get_booking(booking_id)
+
+
+# ── Partial/intermittent endpoint ────────────────────────────────────────────
+_partial_hits: dict = {}
+
+
+@app.get("/partial/bookings/{booking_id}")
+async def partial_get_booking(
+    booking_id: int,
+    authorization: Optional[str] = Header(default=None),
+):
+    """
+    Cross-user requests are counted per (booking_id, user_id); every 3rd one
+    returns 403, the others return the booking; owner requests are never counted.
+    """
+    user_id = _get_user(authorization)
+    booking = _get_booking(booking_id)
+    if user_id != booking["owner_id"]:
+        key = (booking_id, user_id)
+        _partial_hits[key] = _partial_hits.get(key, 0) + 1
+        if _partial_hits[key] % 3 == 0:
+            raise HTTPException(status_code=403, detail="Forbidden")
+    return booking
+
+
+def reset_counters():
+    """Clears the /flaky and /partial counters."""
+    global _flaky_hits, _partial_hits
+    _flaky_hits.clear()
+    _partial_hits.clear()

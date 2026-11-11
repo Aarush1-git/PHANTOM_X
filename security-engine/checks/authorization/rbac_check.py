@@ -21,7 +21,7 @@ TenantIsolationCheck: DENIED 0.9, PUBLIC 0.9, BODY_DIFFERS 0.6, rest 0.0–0.3.
 
 from typing import Any, Dict, Optional
 
-from checks.authorization.access_probe import AccessDecision, probe_access
+from checks.authorization.access_probe import AccessDecision, describe_expected_actual, probe_access
 from checks.base import BaseSecurityCheck, SecurityCheckContext, SecurityCheckResult
 from evidence.redact import build_response_dump, redact_headers
 from shared.enums.common import SafetyClassification, VulnerabilitySeverity
@@ -68,6 +68,9 @@ class RBACCheck(BaseSecurityCheck):
         method = (context.http_method or "GET").upper()
         ignore_fields: list = context.parameters.get("ignore_fields", [])
         role_label: str = context.parameters.get("role_label", "lower-privilege role")
+        owner_label: str = context.parameters.get("owner_label", "owner")
+        attacker_label: str = context.parameters.get("attacker_label", role_label)
+        identity_labels = {"owner": owner_label, "attacker": attacker_label}
 
         if method not in _SAFE_METHODS:
             return SecurityCheckResult(
@@ -86,7 +89,13 @@ class RBACCheck(BaseSecurityCheck):
                 cvss_score=None,
                 evidence_request="",
                 evidence_response="",
-                proof_data={"attack_url": url, "skipped": "state_changing_method", "method": method},
+                proof_data={
+                    "attack_url": url,
+                    "skipped": "state_changing_method",
+                    "method": method,
+                    **describe_expected_actual(0, False, attempted=False),
+                    "identity_labels": identity_labels,
+                },
             )
         classification = self._classification(method)
 
@@ -120,6 +129,8 @@ class RBACCheck(BaseSecurityCheck):
             "user_a_headers_present": bool(context.auth_headers),
             "user_b_headers_present": bool(context.secondary_auth_headers),
             "ignore_fields": ignore_fields,
+            **describe_expected_actual(attack_resp.status_code if attack_resp else 0, pr.body_match, attempted=bool(attack_resp)),
+            "identity_labels": identity_labels,
         }
 
         def _not_vuln(title: str, description: str, confidence: float) -> SecurityCheckResult:

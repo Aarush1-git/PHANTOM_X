@@ -32,7 +32,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from checks.authorization.access_probe import (
-    AccessDecision, AccessProbeResult, bodies_equal, probe_access,
+    AccessDecision, AccessProbeResult, bodies_equal, describe_expected_actual, probe_access,
 )
 from checks.base import BaseSecurityCheck, SecurityCheckContext, SecurityCheckResult
 from evidence.redact import build_response_dump, redact_headers
@@ -88,16 +88,22 @@ class TenantIsolationCheck(BaseSecurityCheck):
         ignore_fields: list,
         **extra,
     ) -> Dict[str, Any]:
+        attempted = pr.attack is not None
+        attack_status = pr.attack.status_code if pr.attack else 0
+        owner_label = context.parameters.get("owner_label", "owner")
+        attacker_label = context.parameters.get("attacker_label", "attacker")
         return {
             "mode": mode,
             "baseline_status": pr.baseline.status_code if pr.baseline else 0,
-            "attack_status": pr.attack.status_code if pr.attack else 0,
+            "attack_status": attack_status,
             "control_status": pr.control.status_code if pr.control else 0,
             "body_match": pr.body_match,
             "attack_url": url,
             "user_a_headers_present": bool(context.auth_headers),
             "user_b_headers_present": bool(context.secondary_auth_headers),
             "ignore_fields": ignore_fields,
+            **describe_expected_actual(attack_status, pr.body_match, attempted=attempted),
+            "identity_labels": {"owner": owner_label, "attacker": attacker_label},
             **extra,
         }
 
@@ -210,6 +216,9 @@ class TenantIsolationCheck(BaseSecurityCheck):
     ) -> SecurityCheckResult:
         tenant_a_id: str = str(context.parameters.get("tenant_a_id", ""))
         tenant_field: str = context.parameters.get("tenant_field", "tenant_id")
+        owner_label = context.parameters.get("owner_label", "owner")
+        attacker_label = context.parameters.get("attacker_label", "attacker")
+        identity_labels = {"owner": owner_label, "attacker": attacker_label}
 
         def _empty_proof(extra=None):
             p = {
@@ -219,6 +228,8 @@ class TenantIsolationCheck(BaseSecurityCheck):
                 "user_a_headers_present": bool(context.auth_headers),
                 "user_b_headers_present": bool(context.secondary_auth_headers),
                 "ignore_fields": ignore_fields,
+                **describe_expected_actual(0, False, attempted=False),
+                "identity_labels": identity_labels,
             }
             if extra:
                 p.update(extra)
@@ -352,6 +363,7 @@ class TenantIsolationCheck(BaseSecurityCheck):
             "attack_status": last_attack_status,
             "control_status": ctrl_status,
             "body_match": attack_hits == 3,
+            **describe_expected_actual(last_attack_status, attack_hits == 3, attempted=bool(last_attack_resp)),
         })
 
         if attack_hits == 3:
