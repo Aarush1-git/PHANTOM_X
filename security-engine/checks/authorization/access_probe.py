@@ -200,3 +200,18 @@ async def probe_access(
         detail="",
     )
 
+
+def describe_expected_actual(attack_status: int, body_match: bool, attempted: bool = True) -> dict:
+    """
+    Format human-readable expected vs actual security assertions.
+    """
+    return {
+        "expected": "access denied (HTTP 401/403/404) for the attacker identity",
+        "actual": (
+            "no attack request sent"
+            if not attempted
+            else f"HTTP {attack_status}, body {'matches' if body_match else 'differs from'} the owner baseline"
+        ),
+    }
+
+

@@ -20,6 +20,7 @@ import json
 import re
 from typing import Any, Dict, Optional
 
+from checks.authorization.access_probe import describe_expected_actual
 from checks.base import BaseSecurityCheck, SecurityCheckContext, SecurityCheckResult
 from evidence.redact import build_response_dump
 from safety.policy import SafetyViolationError
@@ -85,6 +86,9 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
     async def run(self, context: SecurityCheckContext) -> SecurityCheckResult:  # noqa: C901
         url = context.target_url.rstrip("/") + context.endpoint_path
         ignore_fields: list = context.parameters.get("ignore_fields", [])
+        owner_label = context.parameters.get("owner_label", "owner")
+        attacker_label = context.parameters.get("attacker_label", "attacker")
+        identity_labels = {"owner": owner_label, "attacker": attacker_label}
 
         def _not_vuln(
             title: str,
@@ -98,6 +102,7 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
         ) -> SecurityCheckResult:
             evidence_req = ""
             evidence_resp = ""
+            attempted = attack_resp is not None
             if attack_resp is not None:
                 evidence_req = (
                     f"GET {url}\n"
@@ -131,6 +136,8 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
                     "user_a_headers_present": bool(context.auth_headers),
                     "user_b_headers_present": bool(context.secondary_auth_headers),
                     "ignore_fields": ignore_fields,
+                    **describe_expected_actual(attack_status, False, attempted=attempted),
+                    "identity_labels": identity_labels,
                 },
             )
 
@@ -244,6 +251,8 @@ class BOLAOwnershipCheck(BaseSecurityCheck):
             "user_a_headers_present": bool(context.auth_headers),
             "user_b_headers_present": bool(context.secondary_auth_headers),
             "ignore_fields": ignore_fields,
+            **describe_expected_actual(attack.status_code, body_match, attempted=True),
+            "identity_labels": identity_labels,
         }
 
         if 200 <= attack.status_code < 300 and body_match:
