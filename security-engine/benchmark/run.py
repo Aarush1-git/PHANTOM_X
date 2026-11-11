@@ -4,6 +4,7 @@ CLI Entrypoint for the PHANTOM-X Security Benchmark Harness.
 Usage:
     python -m benchmark.run [--manifest PATH] [--base-url URL] [--out DIR]
                             [--rps N] [--replays N] [--skip-stateful] [--fail-on-targets]
+                            [--allow-insecure-http]
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from benchmark.metrics import compute_metrics, evaluate_targets, PROPOSED_TARGET
 from benchmark.report import write_report
 from benchmark.runner import run_benchmark
 from benchmark.schema import load_manifest
+from benchmark.security import is_loopback_host
 from benchmark.server import start_mock_server
 
 
@@ -77,6 +79,12 @@ def main() -> int:
         help="Skip stateful/intermittent test cases",
     )
     parser.add_argument(
+        "--allow-insecure-http",
+        action="store_true",
+        help="Allow sending credentials over cleartext HTTP to a NON-loopback host. "
+             "Only for isolated lab networks (e.g. docker compose); default is to refuse.",
+    )
+    parser.add_argument(
         "--fail-on-targets",
         action="store_true",
         help="Exit with non-zero code if any proposed target fails",
@@ -92,6 +100,16 @@ def main() -> int:
     reset_fn = None
 
     if base_url:
+        from urllib.parse import urlparse
+        _p = urlparse(base_url)
+        if (_p.scheme.lower() != "https" and not is_loopback_host(_p.hostname or "")
+                and not args.allow_insecure_http):
+            print(
+                "[ERROR] Refusing to send credentials over cleartext HTTP to a non-loopback host. "
+                "Use an https:// --base-url, or pass --allow-insecure-http for an isolated lab network.",
+                file=sys.stderr,
+            )
+            return 2
         print("[WARNING] External --base-url specified. Stateful cases may be unreliable without counter resets.")
     else:
         print("[INFO] Starting internal mock server on 127.0.0.1...")
@@ -107,6 +125,7 @@ def main() -> int:
             reset=reset_fn,
             skip_stateful=args.skip_stateful,
             manifest_sha256=manifest_sha256,
+            allow_insecure_http=args.allow_insecure_http,
         ))
     finally:
         if stop_fn is not None:
@@ -134,6 +153,7 @@ def main() -> int:
     print(f"False Positive Rate: {_fmt_pct(metrics.get('false_positive_rate'))} (FP: {metrics.get('fp', 0)}) | Engine Removed: {metrics.get('false_positives_removed_by_proof_engine', 0)} FP")
     print(f"Safety Block Rate:   {_fmt_pct(metrics.get('safety_block_rate'))}")
     print(f"Safety Compliance:   {_fmt_pct(metrics.get('safety_compliance'))}")
+    print(f"Execution Errors:    {metrics.get('error_cases', 0)}")
     print(f"Total HTTP Requests: {metrics.get('total_requests', 0)} across {metrics.get('total_duration_ms', 0):.0f} ms")
     print("-" * 62)
     print("Proposed Engineering Targets:")
@@ -156,4 +176,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

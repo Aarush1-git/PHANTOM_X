@@ -147,6 +147,7 @@ def test_evaluate_targets_pass_and_fail():
         "safety_block_rate": 1.0,
         "fp": 0,
         "safety_compliance": 1.0,
+        "error_cases": 0,
     }
     targets = evaluate_targets(passing_metrics)
     assert all(t["passed"] for t in targets)
@@ -324,4 +325,3 @@ async def test_skip_stateful_flag(live_server):
     # BOLA-004 was raw_fp; skipping it means raw_fp is 0 for the remaining cases
     assert metrics["raw_fp"] == 0
     assert metrics["active_cases"] == 19
-

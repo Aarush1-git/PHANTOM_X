@@ -25,6 +25,7 @@ from safety.policy import SafetyViolationError, SecuritySafetyPolicy
 from shared.enums.common import SafetyClassification
 from benchmark.metrics import CaseResult
 from benchmark.schema import BenchmarkCase, Manifest
+from benchmark.security import enforce_https_for_credentials, sanitize_url
 from verification.pipeline import verify_and_record
 from verification.proof_engine import SelfChallengingProofEngine
 
@@ -44,8 +45,13 @@ class RecordingRunner(ControlledHttpRunner):
     NEVER logs headers, authorization tokens, or request/response bodies.
     """
 
-    def __init__(self, safety_policy: Optional[SecuritySafetyPolicy] = None):
+    def __init__(
+        self,
+        safety_policy: Optional[SecuritySafetyPolicy] = None,
+        allow_insecure_http: bool = False,
+    ):
         super().__init__(safety_policy=safety_policy)
+        self.allow_insecure_http = allow_insecure_http
         self.request_log: List[Dict[str, Any]] = []
         self.current_case_id: str = ""
 
@@ -64,6 +70,9 @@ class RecordingRunner(ControlledHttpRunner):
 
         t0 = time.perf_counter()
         try:
+            # Credentials never travel over cleartext HTTP to non-loopback hosts. This applies to
+            # every request, including case-level target overrides (checks treat it as BLOCKED).
+            enforce_https_for_credentials(url, headers, self.allow_insecure_http)
             resp = await super().execute_request(
                 method=method,
                 url=url,
@@ -150,6 +159,7 @@ async def run_benchmark(
     skip_stateful: bool = False,
     allowed_hosts: Optional[List[str]] = None,
     manifest_sha256: str = "",
+    allow_insecure_http: bool = False,
 ) -> BenchmarkRun:
     """
     Execute all benchmark cases in the manifest against the target service.
@@ -169,7 +179,7 @@ async def run_benchmark(
     all_allowed = list({"127.0.0.1", "localhost", base_host} | set(allowed_hosts or []))
 
     policy = SecuritySafetyPolicy(allowed_hosts=all_allowed, max_rate_rps=rps)
-    runner = RecordingRunner(safety_policy=policy)
+    runner = RecordingRunner(safety_policy=policy, allow_insecure_http=allow_insecure_http)
     engine = SelfChallengingProofEngine(runner=runner, replays=replays)
     collector = EvidenceCollector()
 
@@ -300,7 +310,8 @@ async def run_benchmark(
         "python_version": sys.version.split()[0],
         "replays": replays,
         "rps": rps,
-        "base_url": base_url,
+        "base_url": sanitize_url(base_url),
+        "allow_insecure_http": allow_insecure_http,
         "git_commit": _get_git_commit(),
         "enabled_count": len([c for c in manifest.cases if c.enabled]),
         "skipped_count": skipped_count,
@@ -313,4 +324,3 @@ async def run_benchmark(
         request_log=runner.request_log,
         metadata=metadata,
     )
-

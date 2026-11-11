@@ -105,3 +105,15 @@ Expected outcomes: `CONFIRMED`, `REJECTED`, `NEEDS_HUMAN_REVIEW`, `INCONCLUSIVE`
 - **No External Comparator**: Per Master Plan §27.3, no superiority claims vs. other security tools are asserted without empirical, side-by-side comparative measurements.
 - **Engine Tuning**: Intermittent and lenient token cases are intentionally routed to human review or marked inconclusive to avoid false positives.
 
+
+
+---
+
+## 7. Security Notes
+
+- **Cleartext HTTP**: credential headers are never sent over `http://` to a non-loopback host. Use an `https://` `--base-url`,
+  or pass `--allow-insecure-http` for an isolated lab network (for example a docker-compose Playground). Loopback HTTP is always allowed.
+  Case-level `target_url_override` requests go through the same guard.
+- **Reports**: URL userinfo, query strings and fragments are stripped from `base_url` in `results.json` and `report.md`.
+- **Errors**: cases that end in `ERROR` are incomplete. They are never counted as true negatives, and the `no_execution_errors`
+  target fails (so `--fail-on-targets` exits 1) when any case errors.

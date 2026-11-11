@@ -57,7 +57,13 @@ def compute_metrics(
     # Filter for confusion matrix (exclude safety / n/a ground truth)
     eval_cases = [r for r in results if r.ground_truth in {"vulnerable", "secure"} and r.observed_outcome != "SKIPPED"]
     vulnerable_cases = [r for r in eval_cases if r.ground_truth == "vulnerable"]
-    secure_cases = [r for r in eval_cases if r.ground_truth == "secure"]
+    error_cases = [r for r in results if r.observed_outcome == "ERROR"]
+    # ERROR results are incomplete evaluations: they never count as true negatives and are
+    # excluded from the secure-case denominators. Errors on vulnerable cases stay counted as
+    # misses (conservative for recall).
+    secure_cases = [
+        r for r in eval_cases if r.ground_truth == "secure" and r.observed_outcome != "ERROR"
+    ]
 
     # Verified confusion matrix (positive := observed == "CONFIRMED")
     tp = sum(1 for r in vulnerable_cases if r.observed_outcome == "CONFIRMED")
@@ -109,7 +115,10 @@ def compute_metrics(
 
     # Safety metrics
     safety_cases = [r for r in active_cases if r.category == "safety"]
-    safety_matches = sum(1 for r in safety_cases if r.observed_outcome == r.expected_outcome)
+    safety_matches = sum(
+        1 for r in safety_cases
+        if r.observed_outcome == r.expected_outcome and r.observed_outcome in {"BLOCKED", "REFUSED"}
+    )
     safety_block_rate = safety_matches / len(safety_cases) if safety_cases else None
 
     # Safety compliance: check request_log
@@ -160,6 +169,7 @@ def compute_metrics(
         "fp": fp,
         "fn": fn,
         "tn": tn,
+        "error_cases": len(error_cases),
         "precision": precision,
         "recall_auto_confirmed": recall_auto_confirmed,
         "recall_incl_human_review": recall_incl_human_review,
@@ -199,6 +209,7 @@ def evaluate_targets(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     safety_block_rate = metrics.get("safety_block_rate")
     fp = metrics.get("fp")
     safety_compliance = metrics.get("safety_compliance")
+    errors = metrics.get("error_cases")  # missing/unknown counts as not passing
 
     targets = [
         {
@@ -229,6 +240,12 @@ def evaluate_targets(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             "passed": safety_compliance is not None and safety_compliance == 1.0,
             "disclaimer": PROPOSED_TARGETS_DISCLAIMER,
         },
+        {
+            "name": "no_execution_errors",
+            "target_text": "== 0",
+            "value": errors,
+            "passed": errors is not None and errors == 0,
+            "disclaimer": PROPOSED_TARGETS_DISCLAIMER,
+        },
     ]
     return targets
-

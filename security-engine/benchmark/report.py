@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Tuple
 from evidence.redact import redact_text
 from benchmark.metrics import PROPOSED_TARGETS_DISCLAIMER
 from benchmark.runner import BenchmarkRun
+from benchmark.security import sanitize_url
 
 
 def _fmt(val: Any, is_pct: bool = False) -> str:
@@ -44,6 +45,10 @@ def write_report(
     Returns:
         (results_json_path, report_md_path)
     """
+    # Never persist URL userinfo / query strings (may carry credentials) in reports.
+    run = run.model_copy(update={
+        "metadata": {**run.metadata, "base_url": sanitize_url(str(run.metadata.get("base_url", "")))}
+    })
     output_path = Path(out_dir).resolve()
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -178,4 +183,3 @@ def write_report(
     report_md_path.write_text("\n".join(md_lines), encoding="utf-8")
 
     return results_json_path, report_md_path
-
