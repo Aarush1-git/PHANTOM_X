@@ -46,7 +46,7 @@ def test_manifest_loads_and_validates():
 
     assert isinstance(manifest, Manifest)
     assert len(sha256_hex) == 64
-    assert len(manifest.cases) == 21
+    assert len(manifest.cases) == 36
 
     ids = [c.id for c in manifest.cases]
     assert len(ids) == len(set(ids)), "Case IDs must be unique"
@@ -228,8 +228,8 @@ async def test_full_benchmark_golden_run(live_server, tmp_path):
     assert metrics["raw_fp"] == 1  # BOLA-004 flaky endpoint
     assert metrics["false_positives_removed_by_proof_engine"] == 1
     assert metrics["precision"] == 1.0
-    assert metrics["recall_auto_confirmed"] == pytest.approx(5 / 8)
-    assert metrics["recall_incl_human_review"] == pytest.approx(7 / 8)
+    assert metrics["recall_auto_confirmed"] == pytest.approx(13 / 16)
+    assert metrics["recall_incl_human_review"] == pytest.approx(15 / 16)
 
     # 3. Safety checks SAFE-001..003
     case_map = {r.case_id: r for r in run.results}
@@ -324,4 +324,4 @@ async def test_skip_stateful_flag(live_server):
     metrics = compute_metrics(run.results)
     # BOLA-004 was raw_fp; skipping it means raw_fp is 0 for the remaining cases
     assert metrics["raw_fp"] == 0
-    assert metrics["active_cases"] == 19
+    assert metrics["active_cases"] == 32

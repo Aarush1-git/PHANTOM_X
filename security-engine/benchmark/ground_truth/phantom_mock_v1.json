@@ -402,6 +402,264 @@
       "stateful": false,
       "enabled": true,
       "notes": "state-changing, zero requests"
+    },
+    {
+      "id": "AUTH-001",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/missing/profile",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Missing authentication on profile endpoint confirmed."
+    },
+    {
+      "id": "AUTH-002",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/lax/profile",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Lax authentication accepting malformed tokens confirmed."
+    },
+    {
+      "id": "AUTH-003",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/jwtnone/profile",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Unsigned JWT none algorithm accepted confirmed."
+    },
+    {
+      "id": "AUTH-004",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/secure/profile",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Secure profile rejects all invalid and unauthenticated variants."
+    },
+    {
+      "id": "AUTH-005",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/flaky/profile",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": true,
+      "enabled": true,
+      "notes": "Intermittent auth failure not reproducible 3/3 times."
+    },
+    {
+      "id": "AUTH-006",
+      "scenario": "authentication_inconsistency",
+      "category": "authentication",
+      "check": "BrokenAuthenticationCheck",
+      "path": "/authn/public/info",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {
+        "expect_auth": false
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Public endpoint declared public skips authentication check."
+    },
+    {
+      "id": "VAL-001",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "InputValidationCheck",
+      "path": "/validate/vuln/items",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {
+        "probe_params": {
+          "id": "101"
+        }
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Verbose error and stack trace disclosure confirmed."
+    },
+    {
+      "id": "VAL-002",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "InputValidationCheck",
+      "path": "/validate/500only/items",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {
+        "probe_params": {
+          "id": "101"
+        }
+      },
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Improper input validation causing 500 error confirmed."
+    },
+    {
+      "id": "VAL-003",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "InputValidationCheck",
+      "path": "/validate/secure/items",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {
+        "probe_params": {
+          "id": "101"
+        }
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Secure input validation safely rejects malformed inputs with 422."
+    },
+    {
+      "id": "VAL-004",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "InputValidationCheck",
+      "path": "/validate/flaky/items",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {
+        "probe_params": {
+          "id": "101"
+        }
+      },
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": true,
+      "enabled": true,
+      "notes": "Intermittent input validation failure not reproducible 3/3 times."
+    },
+    {
+      "id": "CORS-001",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "CorsAndMethodCheck",
+      "path": "/cors/vuln/data",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "CORS origin reflection with credentials allowed confirmed."
+    },
+    {
+      "id": "CORS-002",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "CorsAndMethodCheck",
+      "path": "/cors/reflect-nocreds/data",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "CORS origin reflection without credentials confirmed."
+    },
+    {
+      "id": "CORS-003",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "CorsAndMethodCheck",
+      "path": "/cors/secure/data",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Secure endpoint does not reflect untrusted origins."
+    },
+    {
+      "id": "METH-001",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "CorsAndMethodCheck",
+      "path": "/methods/vuln/thing",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "vulnerable",
+      "expected_outcome": "CONFIRMED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Unexpected HTTP methods TRACE and DELETE enabled confirmed."
+    },
+    {
+      "id": "METH-002",
+      "scenario": "api_hardening",
+      "category": "api_security",
+      "check": "CorsAndMethodCheck",
+      "path": "/methods/secure/thing",
+      "method": "GET",
+      "owner": "alpha_agent",
+      "attacker": "alpha_agent",
+      "params": {},
+      "ground_truth": "secure",
+      "expected_outcome": "NOT_FLAGGED",
+      "stateful": false,
+      "enabled": true,
+      "notes": "Secure endpoint enables only expected HTTP methods."
     }
   ]
 }

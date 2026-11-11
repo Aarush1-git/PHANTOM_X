@@ -18,9 +18,23 @@ from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-VALID_CATEGORIES = {"bola", "tenant_isolation", "rbac", "safety"}
+VALID_CATEGORIES = {
+    "bola",
+    "tenant_isolation",
+    "rbac",
+    "safety",
+    "authentication",
+    "api_security",
+}
 
-VALID_CHECKS = {"BOLAOwnershipCheck", "TenantIsolationCheck", "RBACCheck"}
+VALID_CHECKS = {
+    "BOLAOwnershipCheck",
+    "TenantIsolationCheck",
+    "RBACCheck",
+    "BrokenAuthenticationCheck",
+    "InputValidationCheck",
+    "CorsAndMethodCheck",
+}
 
 VALID_EXPECTED_OUTCOMES = {
     "CONFIRMED",
@@ -43,7 +57,14 @@ class BenchmarkCase(BaseModel):
     """A single deterministic security benchmark test case."""
     id: str
     scenario: str
-    category: Literal["bola", "tenant_isolation", "rbac", "safety"]
+    category: Literal[
+        "bola",
+        "tenant_isolation",
+        "rbac",
+        "safety",
+        "authentication",
+        "api_security",
+    ]
     check: str
     path: str
     method: str = "GET"
