@@ -93,15 +93,31 @@ Add an entry to the `cases` list in `benchmark/ground_truth/phantom_mock_v1.json
 }
 ```
 
-Categories: `bola`, `tenant_isolation`, `rbac`, `safety`.  
+Categories: `bola`, `tenant_isolation`, `rbac`, `safety`, `authentication`, `api_security`.  
+Checks: `BOLAOwnershipCheck`, `TenantIsolationCheck`, `RBACCheck`, `BrokenAuthenticationCheck`, `InputValidationCheck`, `CorsAndMethodCheck`.  
 Expected outcomes: `CONFIRMED`, `REJECTED`, `NEEDS_HUMAN_REVIEW`, `INCONCLUSIVE`, `NOT_FLAGGED`, `CHECK_INCONCLUSIVE`, `BLOCKED`, `REFUSED`.
 
 ---
 
-## 6. Limitations & Context
+## 6. Covered Checks & Categories
+
+The ground-truth suite evaluates 6 security check classes across 6 categories (36 cases total):
+
+| Category | Checks | Description | Cases |
+| :--- | :--- | :--- | :---: |
+| `bola` | `BOLAOwnershipCheck` | Object-level authorization and IDOR detection | 7 |
+| `tenant_isolation` | `TenantIsolationCheck` | Cross-tenant data isolation and scope spoofing | 8 |
+| `rbac` | `RBACCheck` | Role-based vertical authorization bypass | 3 |
+| `authentication` | `BrokenAuthenticationCheck` | Missing authentication, lax tokens, unsigned JWT | 6 |
+| `api_security` | `InputValidationCheck`, `CorsAndMethodCheck` | Injection/error disclosure, CORS reflection, method abuse | 9 |
+| `safety` | Policy Guards (`BOLAOwnershipCheck`, `RBACCheck`) | Host allowlist, SSRF/metadata guards, safe method enforcement | 3 |
+
+---
+
+## 7. Limitations & Context
 
 - **Synthetic Mock App**: The mock app is created alongside the test suite; ground truth is established by design.
-- **Sample Size**: N=21 cases provide deterministic validation of current rules rather than broad statistical power.
+- **Sample Size**: N=36 cases provide deterministic validation of current rules rather than broad statistical power.
 - **No External Comparator**: Per Master Plan §27.3, no superiority claims vs. other security tools are asserted without empirical, side-by-side comparative measurements.
 - **Engine Tuning**: Intermittent and lenient token cases are intentionally routed to human review or marked inconclusive to avoid false positives.
 
@@ -109,7 +125,7 @@ Expected outcomes: `CONFIRMED`, `REJECTED`, `NEEDS_HUMAN_REVIEW`, `INCONCLUSIVE`
 
 ---
 
-## 7. Security Notes
+## 8. Security Notes
 
 - **Cleartext HTTP**: credential headers are never sent over `http://` to a non-loopback host. Use an `https://` `--base-url`,
   or pass `--allow-insecure-http` for an isolated lab network (for example a docker-compose Playground). Loopback HTTP is always allowed.

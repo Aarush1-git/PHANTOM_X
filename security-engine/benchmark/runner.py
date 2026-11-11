@@ -141,6 +141,9 @@ def _resolve_check_class(check_name: str) -> Any:
         "BOLAOwnershipCheck": ("checks.authorization.bola_check", "BOLAOwnershipCheck"),
         "TenantIsolationCheck": ("checks.authorization.tenant_isolation_check", "TenantIsolationCheck"),
         "RBACCheck": ("checks.authorization.rbac_check", "RBACCheck"),
+        "BrokenAuthenticationCheck": ("checks.authentication.broken_auth_check", "BrokenAuthenticationCheck"),
+        "InputValidationCheck": ("checks.api_security.input_validation_check", "InputValidationCheck"),
+        "CorsAndMethodCheck": ("checks.api_security.cors_method_check", "CorsAndMethodCheck"),
     }
     if check_name in check_map:
         mod_name, cls_name = check_map[check_name]
