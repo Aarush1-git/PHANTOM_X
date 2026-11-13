@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Server, Globe, Radar, Compass, ArrowLeft, ShieldAlert, FileText } from "lucide-react";
+import { Server, Globe, Radar, Compass, ArrowLeft, ShieldAlert, FileText, Cpu, GitBranch, Key } from "lucide-react";
 import { PageHeader } from "../components/common/PageHeader";
 import { LoadingSpinner } from "../components/common/LoadingSpinner";
+import { BehavioralDigitalTwinPanel } from "../components/behavioral_digital_twin";
+import { WorkflowDiscoveryPanel } from "../components/workflow_discovery";
+import { RoleResourceMappingPanel } from "../components/role_resource_mapping";
 import { api } from "../services/api";
 import { ApplicationResponse } from "../types";
 
@@ -10,6 +13,7 @@ export const ApplicationDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [app, setApp] = useState<ApplicationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"twin" | "workflows" | "role_resource">("twin");
 
   useEffect(() => {
     if (!id) return;
@@ -96,18 +100,54 @@ export const ApplicationDetailsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="md:col-span-2 bg-phantom-900 border border-slate-800 rounded-lg p-5">
-          <h3 className="text-xs font-mono font-semibold text-slate-400 uppercase tracking-wider mb-4">
-            Behavioral Digital Twin Status (Member 1)
-          </h3>
-          <div className="bg-slate-950/60 border border-slate-800 rounded p-4 text-xs text-slate-400 leading-relaxed">
-            <p className="font-semibold text-slate-200 mb-1">State Machine & Role Mapping</p>
-            The Behavioral Digital Twin models workflow sequences and role boundaries extracted by the Discovery Agent.
-            Trigger an automated discovery session to populate endpoint graph models.
+        <div className="md:col-span-2 space-y-4">
+          {/* Tab Navigation */}
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <button
+              onClick={() => setActiveTab("twin")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                activeTab === "twin"
+                  ? "bg-cyan-600/20 text-cyan-400 border border-cyan-800/60 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>Behavioral Digital Twin</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("workflows")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                activeTab === "workflows"
+                  ? "bg-cyan-600/20 text-cyan-400 border border-cyan-800/60 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+              }`}
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              <span>Workflow Discovery</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("role_resource")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                activeTab === "role_resource"
+                  ? "bg-cyan-600/20 text-cyan-400 border border-cyan-800/60 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent"
+              }`}
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>Role &amp; Resource Mapping</span>
+            </button>
           </div>
+
+          {/* Panel Display */}
+          {activeTab === "twin" ? (
+            <BehavioralDigitalTwinPanel applicationId={app.id} />
+          ) : activeTab === "workflows" ? (
+            <WorkflowDiscoveryPanel applicationId={app.id} />
+          ) : (
+            <RoleResourceMappingPanel applicationId={app.id} />
+          )}
         </div>
       </div>
     </div>
   );
 };
-

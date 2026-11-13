@@ -35,6 +35,26 @@ from app.models.remediation import (
     RemediationPriority,
     VerificationStatus,
 )
+from app.features.application_intelligence.behavioral_digital_twin.models import (
+    BehavioralObservation,
+    BehavioralBaseline,
+    BehavioralTransition,
+    BehavioralAnomaly,
+)
+from app.features.application_intelligence.workflow_discovery.models import (
+    DiscoveredWorkflow,
+    WorkflowType,
+    WorkflowStatus,
+    StepType,
+)
+from app.features.application_intelligence.role_resource_mapping.models import (
+    RoleResourceMapping,
+    SubjectType,
+    ObjectType,
+    RelationshipType,
+    EvidenceSource,
+    MappingStatus,
+)
 
 __all__ = [
     "ModelBase",
@@ -77,5 +97,8 @@ __all__ = [
     "RecommendationStatus",
     "RemediationPriority",
     "VerificationStatus",
+    "BehavioralObservation",
+    "BehavioralBaseline",
+    "BehavioralTransition",
+    "BehavioralAnomaly",
 ]
-
