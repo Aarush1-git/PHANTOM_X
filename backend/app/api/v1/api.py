@@ -19,6 +19,9 @@ from app.features.security_operations.scan_history.routes import router as scan_
 from app.features.security_operations.time_travel.routes import router as time_travel_router
 from app.features.security_operations.playground import playground_router
 from app.features.security_operations.remediation import remediation_router
+from app.features.application_intelligence.behavioral_digital_twin.routes import router as behavioral_twin_router
+from app.features.application_intelligence.workflow_discovery.routes import router as workflow_router
+from app.features.application_intelligence.role_resource_mapping.routes import router as role_resource_mapping_router
 
 api_router = APIRouter()
 
@@ -41,5 +44,6 @@ api_router.include_router(scan_history_router, prefix="/scan-history", tags=["Sc
 api_router.include_router(time_travel_router)
 api_router.include_router(playground_router)
 api_router.include_router(remediation_router)
-
-
+api_router.include_router(behavioral_twin_router)
+api_router.include_router(workflow_router)
+api_router.include_router(role_resource_mapping_router)
